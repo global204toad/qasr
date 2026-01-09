@@ -54,7 +54,7 @@ const MobileMenu = ({ isOpen, onClose, navigation }) => {
       {isOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black bg-opacity-50 transition-opacity" />
-          
+
           {/* Menu Panel */}
           <div className="fixed left-0 top-0 h-full w-full max-w-xs">
             <div
@@ -103,8 +103,8 @@ const MobileMenu = ({ isOpen, onClose, navigation }) => {
                 {/* Main Navigation */}
                 <div className="space-y-1">
                   {navigation.map((item) => (
-                    <Link 
-                      key={item.name} 
+                    <Link
+                      key={item.name}
                       href={item.href}
                       onClick={onClose}
                       className="flex items-center px-3 py-2 text-base font-medium text-gray-700 rounded-md hover:bg-gray-100 hover:text-primary-600 transition-colors"
@@ -121,8 +121,8 @@ const MobileMenu = ({ isOpen, onClose, navigation }) => {
                       {userMenuItems
                         .filter(item => item.show)
                         .map((item, index) => (
-                          <Link 
-                            key={index} 
+                          <Link
+                            key={index}
                             href={item.href}
                             onClick={onClose}
                             className="flex items-center px-3 py-2 text-base font-medium text-gray-700 rounded-md hover:bg-gray-100 hover:text-primary-600 transition-colors"
@@ -141,7 +141,7 @@ const MobileMenu = ({ isOpen, onClose, navigation }) => {
                 {/* Cart Summary */}
                 {totals.items > 0 && (
                   <div className="border-t border-gray-200 pt-4 mt-4">
-                    <Link 
+                    <Link
                       href="/cart"
                       onClick={onClose}
                       className="flex items-center justify-between px-3 py-2 text-base font-medium text-gray-700 rounded-md hover:bg-gray-100 hover:text-primary-600 transition-colors"
@@ -169,8 +169,8 @@ const MobileMenu = ({ isOpen, onClose, navigation }) => {
                     Sign Out
                   </button>
                 ) : (
-                  <Link 
-                    href="/login"
+                  <Link
+                    href="/sign-in"
                     onClick={onClose}
                     className="flex items-center justify-center w-full px-4 py-2 text-base font-medium text-primary-600 border border-primary-600 rounded-md hover:bg-primary-50 transition-colors"
                   >
