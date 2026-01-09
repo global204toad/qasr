@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Backend specific
+backend/.env
+backend/node_modules/
+
+# Frontend specific  
+frontend/.env.local
+frontend/.env*.local
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# Vercel
+.vercel
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Database backups
+db-backup/
+*.dump
+
+# Misc
+.env
+*.pem

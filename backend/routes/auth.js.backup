@@ -1,0 +1,834 @@
+const express = require('express');
+const crypto = require('crypto');
+const passport = require('passport');
+const { body } = require('express-validator');
+const User = require('../models/User');
+const { protect, sendTokenResponse, logout } = require('../middleware/auth');
+const { 
+  validateRegister, 
+  validateLogin, 
+  validatePasswordReset, 
+  validateNewPassword,
+  validateProfileUpdate,
+  validateSMSVerification,
+  handleValidationErrors,
+  sanitizeInput 
+} = require('../middleware/validation');
+
+const router = express.Router();
+
+// @desc    Check if email exists
+// @route   POST /api/auth/check-email
+// @access  Public
+router.post('/check-email', [
+  sanitizeInput,
+  body('email')
+    .isEmail()
+    .withMessage('Please provide a valid email address')
+    .normalizeEmail(),
+  handleValidationErrors
+], async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    // Check if user already exists with this email
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email already registered, please log in instead.'
+      });
+    }
+
+    // Email is available
+    res.status(200).json({
+      success: true,
+      message: 'Email is available'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @desc    Register user
+// @route   POST /api/auth/register
+// @access  Public
+router.post('/register', [
+  sanitizeInput,
+  ...validateRegister,
+  handleValidationErrors
+], async (req, res, next) => {
+  try {
+    const { email, name, mobile, password } = req.body;
+
+    // Check if user already exists by mobile
+    const existingUserByMobile = await User.findOne({ mobile });
+    if (existingUserByMobile) {
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists with this mobile number'
+      });
+    }
+
+    // Check if user already exists by email
+    const existingUserByEmail = await User.findOne({ email });
+    if (existingUserByEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists with this email address'
+      });
+    }
+
+    // Create user as verified since mobile verification happened in the signup flow
+    const user = await User.create({
+      email,
+      name,
+      mobile,
+      password,
+      isVerified: true // User is verified since mobile verification happened before registration
+    });
+
+    // Send welcome SMS
+    const { sendWelcomeSMS } = require('../utils/smsService');
+    await sendWelcomeSMS(mobile, name);
+
+    // Send token response to automatically log in the user
+    sendTokenResponse(user, 201, res, 'Registration successful! Welcome to ALKASR.');
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @desc    Login user
+// @route   POST /api/auth/login
+// @access  Public
+router.post('/login', [
+  sanitizeInput,
+  handleValidationErrors
+], async (req, res, next) => {
+  try {
+    const { mobile, identifier } = req.body;
+    const loginIdentifier = identifier || mobile; // Support both field names
+    const { password } = req.body;
+
+    if (!loginIdentifier || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Login identifier and password are required'
+      });
+    }
+
+    let user = null;
+
+    // Detect if identifier is email or mobile
+    if (loginIdentifier.includes('@')) {
+      // Email login
+      user = await User.findByEmailWithPassword(loginIdentifier);
+    } else {
+      // Mobile login - format the number first
+      const { formatEgyptianPhoneNumber } = require('../utils/smsService');
+      const formattedMobile = formatEgyptianPhoneNumber(loginIdentifier);
+      user = await User.findByMobileWithPassword(formattedMobile);
+    }
+    
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
+    // Check password (only for local users)
+    if (user.provider === 'local') {
+      const isMatch = await user.comparePassword(password);
+      
+      if (!isMatch) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid credentials'
+        });
+      }
+
+      // Check if account is verified (only for local users)
+      if (!user.isVerified) {
+        return res.status(401).json({
+          success: false,
+          message: 'Account not verified. Please verify your account before logging in.',
+          needsVerification: true,
+          mobile: user.mobile,
+          email: user.email
+        });
+      }
+    }
+
+    // Update last login
+    user.lastLogin = new Date();
+    await user.save();
+
+    // Send token response
+    sendTokenResponse(user, 200, res, 'Login successful');
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @desc    Google OAuth login
+// @route   GET /api/auth/google
+// @access  Public
+router.get('/google', (req, res, next) => {
+  // Check if Google OAuth is configured
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    return res.status(501).json({
+      success: false,
+      message: 'Google OAuth is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.'
+    });
+  }
+  
+  // Use passport authentication
+  passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
+});
+
+// @desc    Google OAuth callback
+// @route   GET /api/auth/google/callback
+// @access  Public
+router.get('/google/callback', (req, res, next) => {
+  // Check if Google OAuth is configured
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    return res.status(501).json({
+      success: false,
+      message: 'Google OAuth is not configured.'
+    });
+  }
+  
+  // Use passport authentication with callback
+  console.log('🔍 Google OAuth callback received');
+  passport.authenticate('google', { session: false, failureRedirect: '/sign-in' })(req, res, async (err) => {
+    if (err) {
+      console.error('❌ Google OAuth callback error:', err);
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/sign-in?error=oauth_failed&message=${encodeURIComponent('Authentication failed. Please try again.')}`);
+    }
+    
+    try {
+      const user = req.user;
+      
+      if (!user) {
+        console.error('No user returned from Google OAuth');
+        return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/sign-in?error=oauth_failed&message=${encodeURIComponent('No user data received from Google.')}`);
+      }
+      
+      console.log('Google OAuth successful for user:', {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        provider: user.provider
+      });
+      
+      // Generate JWT token
+      const token = user.getSignedJwtToken();
+      
+      // Set secure cookie with proper options for development
+      const cookieOptions = {
+        expires: new Date(Date.now() + (process.env.JWT_COOKIE_EXPIRE || 30) * 24 * 60 * 60 * 1000),
+        httpOnly: true,
+        secure: false, // Set to false for localhost development
+        sameSite: 'lax', // Allow cross-site requests for OAuth
+        path: '/',
+        domain: 'localhost' // Explicitly set domain for localhost
+      };
+
+      res.cookie('token', token, cookieOptions);
+
+      // Also set a non-httpOnly cookie for frontend access
+      res.cookie('auth_token', token, {
+        expires: new Date(Date.now() + (process.env.JWT_COOKIE_EXPIRE || 30) * 24 * 60 * 60 * 1000),
+        httpOnly: false,
+        secure: false, // Set to false for localhost development
+        sameSite: 'lax',
+        path: '/',
+        domain: 'localhost' // Explicitly set domain for localhost
+      });
+
+      // Redirect to frontend with success
+      const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/oauth-callback?token=${token}&provider=google&success=true`;
+      console.log('Redirecting to:', redirectUrl);
+      res.redirect(redirectUrl);
+    } catch (error) {
+      console.error('Google OAuth callback error:', error);
+      res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/sign-in?error=oauth_failed&message=${encodeURIComponent('Server error during authentication. Please try again.')}`);
+    }
+  });
+});
+
+// @desc    Facebook OAuth login
+// @route   GET /api/auth/facebook
+// @access  Public
+router.get('/facebook', (req, res, next) => {
+  // Check if Facebook OAuth is configured
+  if (!process.env.FACEBOOK_APP_ID || !process.env.FACEBOOK_APP_SECRET) {
+    return res.status(501).json({
+      success: false,
+      message: 'Facebook OAuth is not configured. Please set FACEBOOK_APP_ID and FACEBOOK_APP_SECRET environment variables.'
+    });
+  }
+  
+  // Use passport authentication
+  passport.authenticate('facebook', { scope: ['email'] })(req, res, next);
+});
+
+// @desc    Facebook OAuth callback
+// @route   GET /api/auth/facebook/callback
+// @access  Public
+router.get('/facebook/callback', (req, res, next) => {
+  // Check if Facebook OAuth is configured
+  if (!process.env.FACEBOOK_APP_ID || !process.env.FACEBOOK_APP_SECRET) {
+    return res.status(501).json({
+      success: false,
+      message: 'Facebook OAuth is not configured.'
+    });
+  }
+  
+  // Use passport authentication with callback
+  passport.authenticate('facebook', { session: false, failureRedirect: '/sign-in' })(req, res, async (err) => {
+    if (err) {
+      console.error('Facebook OAuth callback error:', err);
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/sign-in?error=oauth_failed`);
+    }
+    
+    try {
+      const user = req.user;
+      
+      // Generate JWT token
+      const token = user.getSignedJwtToken();
+      
+      // Set cookie
+      const options = {
+        expires: new Date(Date.now() + (process.env.JWT_COOKIE_EXPIRE || 30) * 24 * 60 * 60 * 1000),
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production'
+      };
+
+      res.cookie('token', token, options);
+
+      // Redirect to frontend with token
+      const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/oauth-callback?token=${token}&provider=facebook`;
+      res.redirect(redirectUrl);
+    } catch (error) {
+      console.error('Facebook OAuth callback error:', error);
+      res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/sign-in?error=oauth_failed`);
+    }
+  });
+});
+
+// @desc    Logout user / clear cookie
+// @route   POST /api/auth/logout
+// @access  Private
+router.post('/logout', logout);
+
+// @desc    Get current logged in user
+// @route   GET /api/auth/me
+// @access  Private
+router.get('/me', protect, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    
+    res.status(200).json({
+      success: true,
+      data: user
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @desc    Update user profile
+// @route   PUT /api/auth/profile
+// @access  Private
+router.put('/profile', [
+  protect,
+  sanitizeInput,
+  ...validateProfileUpdate,
+  handleValidationErrors
+], async (req, res, next) => {
+  try {
+    const fieldsToUpdate = {};
+    const allowedFields = ['name', 'email', 'address'];
+    
+    // Only update allowed fields
+    allowedFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        fieldsToUpdate[field] = req.body[field];
+      }
+    });
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      fieldsToUpdate,
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: user
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @desc    Update password
+// @route   PUT /api/auth/password
+// @access  Private
+router.put('/password', [
+  protect,
+  sanitizeInput
+], async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide current password and new password'
+      });
+    }
+
+    // Validate new password
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters'
+      });
+    }
+
+    // Get user with password
+    const user = await User.findById(req.user.id).select('+password');
+
+    // Check current password
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+
+    // Update password
+    user.password = newPassword;
+    await user.save();
+
+    // Send token response
+    sendTokenResponse(user, 200, res, 'Password updated successfully');
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @desc    Forgot password
+// @route   POST /api/auth/forgot-password
+// @access  Public
+router.post('/forgot-password', [
+  sanitizeInput,
+  ...validatePasswordReset,
+  handleValidationErrors
+], async (req, res, next) => {
+  try {
+    const { mobile } = req.body;
+
+    const user = await User.findOne({ mobile });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No user found with this mobile number'
+      });
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+
+    // Hash token and set to resetPasswordToken field
+    user.resetPasswordToken = crypto
+      .createHash('sha256')
+      .update(resetToken)
+      .digest('hex');
+
+    // Set expire time (10 minutes)
+    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
+
+    await user.save({ validateBeforeSave: false });
+
+    // Create reset URL
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+
+    // Send SMS with reset link
+    const { sendSMSVerificationCode } = require('../utils/smsService');
+    const resetMessage = `Password Reset Request\n\nClick this link to reset your password:\n${resetUrl}\n\nThis link expires in 10 minutes.\n\nALKASR Team`;
+    
+    // For now, just return the reset URL (in production, send SMS)
+    res.status(200).json({
+      success: true,
+      message: 'Password reset link has been sent to your mobile number',
+      resetUrl // Remove this in production
+    });
+
+  } catch (error) {
+    // Clear reset token fields if SMS fails
+    if (req.user) {
+      req.user.resetPasswordToken = undefined;
+      req.user.resetPasswordExpire = undefined;
+      await req.user.save({ validateBeforeSave: false });
+    }
+    
+    next(error);
+  }
+});
+
+// @desc    Reset password
+// @route   PUT /api/auth/reset-password/:resettoken
+// @access  Public
+router.put('/reset-password/:resettoken', [
+  sanitizeInput,
+  ...validateNewPassword,
+  handleValidationErrors
+], async (req, res, next) => {
+  try {
+    const { password } = req.body;
+
+    // Get hashed token
+    const resetPasswordToken = crypto
+      .createHash('sha256')
+      .update(req.params.resettoken)
+      .digest('hex');
+
+    const user = await User.findOne({
+      resetPasswordToken,
+      resetPasswordExpire: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired reset token'
+      });
+    }
+
+    // Set new password
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save();
+
+    // Send token response
+    sendTokenResponse(user, 200, res, 'Password reset successful');
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @desc    Verify mobile with SMS code (during signup flow)
+// @route   POST /api/auth/verify-mobile
+// @access  Public
+router.post('/verify-mobile', [
+  sanitizeInput,
+  ...validateSMSVerification,
+  handleValidationErrors
+], async (req, res, next) => {
+  try {
+    const { mobile, verificationCode } = req.body;
+
+    // Use the new verification service
+    const { validateEgyptianPhoneNumber, formatEgyptianPhoneNumber, verifySMSCode } = require('../utils/smsService');
+    
+    if (!validateEgyptianPhoneNumber(mobile)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid phone number format'
+      });
+    }
+
+    const formattedMobile = formatEgyptianPhoneNumber(mobile);
+
+    // Verify the code using Twilio Verify service or fallback validation
+    const verifyResult = await verifySMSCode(formattedMobile, verificationCode);
+
+    if (verifyResult.success) {
+      res.status(200).json({
+        success: true,
+        message: 'Mobile number verified successfully!',
+        data: {
+          mobile: formattedMobile,
+          verified: true,
+          status: verifyResult.status
+        }
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: verifyResult.message || 'Invalid verification code. Please try again.',
+        error: verifyResult.error || 'INVALID_CODE'
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @desc    Verify mobile with SMS code (for existing users)
+// @route   POST /api/auth/verify-mobile-user
+// @access  Public
+router.post('/verify-mobile-user', [
+  sanitizeInput,
+  ...validateSMSVerification,
+  handleValidationErrors
+], async (req, res, next) => {
+  try {
+    const { mobile, verificationCode } = req.body;
+
+    // Find user with verification code
+    const user = await User.findByMobileWithVerificationCode(mobile);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Verify the code
+    const verifyResult = user.verifyCode(verificationCode);
+    
+    if (!verifyResult.success) {
+      let message = 'Invalid or expired verification code';
+      let statusCode = 400;
+      
+      switch (verifyResult.error) {
+        case 'NO_CODE':
+          message = 'No verification code found. Please request a new code.';
+          statusCode = 404;
+          break;
+        case 'EXPIRED':
+          message = 'Verification code has expired. Please request a new code.';
+          statusCode = 400;
+          break;
+        case 'MAX_ATTEMPTS':
+          message = 'Maximum verification attempts exceeded. Please request a new code.';
+          statusCode = 429;
+          break;
+        case 'INVALID_CODE':
+          message = `Invalid verification code. ${verifyResult.remainingAttempts} attempts remaining.`;
+          statusCode = 400;
+          break;
+      }
+      
+      // Save the user to persist attempt count
+      if (verifyResult.error === 'INVALID_CODE') {
+        await user.save();
+      }
+      
+      return res.status(statusCode).json({
+        success: false,
+        message,
+        error: verifyResult.error,
+        remainingAttempts: verifyResult.remainingAttempts,
+        attemptsUsed: verifyResult.attemptsUsed
+      });
+    }
+
+    // Save the user (this will clear the verification code and mark as verified)
+    await user.save();
+
+    // Send welcome SMS
+    const { sendWelcomeSMS } = require('../utils/smsService');
+    await sendWelcomeSMS(mobile, user.name);
+
+    // Generate token and send response
+    const token = user.getSignedJwtToken();
+
+    res.status(200).json({
+      success: true,
+      message: 'Mobile number verified successfully! Account created.',
+      token,
+      data: {
+        user: {
+          id: user._id,
+          email: user.email,
+          name: user.name,
+          mobile: user.mobile,
+          isVerified: user.isVerified
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @desc    Send SMS OTP (for signup flow)
+// @route   POST /api/auth/send-otp
+// @access  Public
+router.post('/send-otp', [
+  sanitizeInput,
+  body('phoneNumber')
+    .notEmpty()
+    .withMessage('Phone number is required')
+    .custom((value) => {
+      const { validateEgyptianPhoneNumber } = require('../utils/smsService');
+      if (!validateEgyptianPhoneNumber(value)) {
+        throw new Error('Please provide a valid Egyptian mobile number');
+      }
+      return true;
+    }),
+  handleValidationErrors
+], async (req, res, next) => {
+  try {
+    const { phoneNumber } = req.body;
+
+    // Format phone number
+    const { formatEgyptianPhoneNumber, sendSMSVerificationCode } = require('../utils/smsService');
+    const formattedPhone = formatEgyptianPhoneNumber(phoneNumber);
+
+    // Check if user already exists with this phone number
+    const existingUser = await User.findOne({ mobile: formattedPhone });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'A user with this mobile number already exists. Please sign in instead.',
+        error: 'USER_EXISTS'
+      });
+    }
+
+    // Send SMS using updated service (no need to generate OTP manually)
+    const smsResult = await sendSMSVerificationCode(formattedPhone);
+
+    if (smsResult.success) {
+      // Store OTP temporarily (in production, use Redis)
+      // For now, we'll rely on the User model's verification system during registration
+      res.status(200).json({
+        success: true,
+        message: 'Verification code sent to your number.',
+        data: {
+          phoneNumber: formattedPhone,
+          remainingAttempts: smsResult.remainingAttempts
+        }
+      });
+    } else {
+      // Determine appropriate HTTP status based on error type
+      let statusCode = 500;
+      if (smsResult.error === 'RATE_LIMIT_EXCEEDED') {
+        statusCode = 429;
+      } else if (smsResult.error === 'RESEND_COOLDOWN') {
+        statusCode = 429;
+      } else if (smsResult.error === 'INVALID_PHONE_NUMBER' || smsResult.error === 'INVALID_FORMAT') {
+        statusCode = 400;
+      } else if (smsResult.error === 'TWILIO_NOT_CONFIGURED') {
+        statusCode = 503; // Service unavailable
+      }
+      
+      const response = {
+        success: false,
+        message: smsResult.message || 'Unable to send SMS at this time. Please try again later.',
+        error: smsResult.error || 'SMS_SEND_FAILED'
+      };
+      
+      // Add additional fields for specific error types
+      if (smsResult.timeUntilReset) {
+        response.timeUntilReset = smsResult.timeUntilReset;
+      }
+      if (smsResult.timeUntilResend) {
+        response.timeUntilResend = smsResult.timeUntilResend;
+      }
+      
+      res.status(statusCode).json(response);
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @desc    Resend SMS verification code
+// @route   POST /api/auth/resend-verification
+// @access  Public
+router.post('/resend-verification', [
+  sanitizeInput
+], async (req, res, next) => {
+  try {
+    const { mobile } = req.body;
+
+    if (!mobile) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number is required'
+      });
+    }
+
+    // Find user
+    const user = await User.findOne({ mobile });
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Check if already verified
+    if (user.isVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number is already verified'
+      });
+    }
+
+    // Generate new verification code
+    const verificationCode = user.generateSMSVerificationCode();
+    await user.save();
+
+    // Send SMS verification code
+    const { sendSMSVerificationCode } = require('../utils/smsService');
+    const smsResult = await sendSMSVerificationCode(mobile, verificationCode);
+
+    if (smsResult.success) {
+      res.status(200).json({
+        success: true,
+        message: 'Verification code sent successfully! Please check your mobile.',
+        remainingAttempts: smsResult.remainingAttempts
+      });
+    } else {
+      // Determine appropriate HTTP status based on error type
+      let statusCode = 500;
+      if (smsResult.error === 'RATE_LIMIT_EXCEEDED') {
+        statusCode = 429;
+      } else if (smsResult.error === 'RESEND_COOLDOWN') {
+        statusCode = 429;
+      } else if (smsResult.error === 'INVALID_PHONE_NUMBER' || smsResult.error === 'INVALID_FORMAT') {
+        statusCode = 400;
+      } else if (smsResult.error === 'TWILIO_NOT_CONFIGURED') {
+        statusCode = 503; // Service unavailable
+      }
+      
+      const response = {
+        success: false,
+        message: smsResult.message || 'Failed to send verification code. Please try again later.',
+        error: smsResult.error || 'SMS_SEND_FAILED'
+      };
+      
+      // Add additional fields for specific error types
+      if (smsResult.timeUntilReset) {
+        response.timeUntilReset = smsResult.timeUntilReset;
+      }
+      if (smsResult.timeUntilResend) {
+        response.timeUntilResend = smsResult.timeUntilResend;
+      }
+      
+      res.status(statusCode).json(response);
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
+module.exports = router;
