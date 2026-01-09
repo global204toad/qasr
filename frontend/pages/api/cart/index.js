@@ -11,9 +11,15 @@ const getUserFromRequest = async (req) => {
             return null;
         }
         const token = authHeader.split(' ')[1];
-        const decoded = verifyToken(token);
-        return decoded;
+        const decoded = await verifyToken(token);
+
+        // Return an object with userId for consistency
+        return {
+            userId: decoded.userId,
+            email: decoded.email
+        };
     } catch (error) {
+        console.error('Auth error in cart API:', error.message);
         return null;
     }
 };
