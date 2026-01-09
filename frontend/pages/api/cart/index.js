@@ -42,7 +42,15 @@ async function handler(req, res) {
 // Get user's cart
 async function getCart(req, res) {
     try {
-        const user = await getUserFromRequest(req);
+        let user = null;
+
+        // Try to get user, but don't fail if authentication fails
+        try {
+            user = await getUserFromRequest(req);
+        } catch (authError) {
+            console.error('Auth error in getCart:', authError.message);
+            user = null;
+        }
 
         // If no user, return empty cart (guest user)
         if (!user || !user.userId) {
@@ -112,7 +120,16 @@ async function getCart(req, res) {
 async function addToCart(req, res) {
     try {
         const { productId, quantity = 1, weightOption } = req.body;
-        const user = await getUserFromRequest(req);
+
+        let user = null;
+
+        // Try to get user, but don't fail if authentication fails
+        try {
+            user = await getUserFromRequest(req);
+        } catch (authError) {
+            console.error('Auth error in addToCart:', authError.message);
+            user = null;
+        }
 
         // If no user (guest), return success - cart will be managed in localStorage
         if (!user || !user.userId) {
