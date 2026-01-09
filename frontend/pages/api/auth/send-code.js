@@ -126,6 +126,3 @@ export default async function handler(req, res) {
         });
     }
 }
-
-// Export the maps for use in verify-code
-export { otpCodes, otpAttempts };
