@@ -152,52 +152,55 @@ export const CartProvider = ({ children }) => {
       const errorMessage = err.response?.data?.message || 'Failed to add item to cart';
       toast.error(errorMessage);
 
-      // Fallback to localStorage if API fails
-      setItems(currentItems => {
-        const existingItem = currentItems.find(item => {
-          const sameProduct = item.product._id === product._id;
-          if (weightOption) {
-            const sameWeight = item.weightOption &&
-              item.weightOption.grams === weightOption.grams;
-            return sameProduct && sameWeight;
-          }
-          return sameProduct && !item.weightOption;
-        });
-
-        if (existingItem) {
-          const updatedItems = currentItems.map(item => {
-            const isSameItem = weightOption
-              ? (item.product._id === product._id &&
-                item.weightOption?.grams === weightOption.grams)
-              : (item.product._id === product._id && !item.weightOption);
-
-            return isSameItem
-              ? { ...item, quantity: item.quantity + quantity }
-              : item;
+      // Only fallback to localStorage if user is NOT authenticated
+      if (!isAuthenticated()) {
+        // Fallback to localStorage if API fails for guest users
+        setItems(currentItems => {
+          const existingItem = currentItems.find(item => {
+            const sameProduct = item.product._id === product._id;
+            if (weightOption) {
+              const sameWeight = item.weightOption &&
+                item.weightOption.grams === weightOption.grams;
+              return sameProduct && sameWeight;
+            }
+            return sameProduct && !item.weightOption;
           });
-          return updatedItems;
-        } else {
-          const newItem = {
-            product,
-            quantity,
-            addedAt: new Date().toISOString()
-          };
 
-          if (weightOption) {
-            newItem.weightOption = {
-              label: weightOption.label,
-              grams: weightOption.grams,
-              price: weightOption.price
-            };
-            newItem.price = weightOption.price;
+          if (existingItem) {
+            const updatedItems = currentItems.map(item => {
+              const isSameItem = weightOption
+                ? (item.product._id === product._id &&
+                  item.weightOption?.grams === weightOption.grams)
+                : (item.product._id === product._id && !item.weightOption);
+
+              return isSameItem
+                ? { ...item, quantity: item.quantity + quantity }
+                : item;
+            });
+            return updatedItems;
           } else {
-            newItem.price = product.price;
-          }
+            const newItem = {
+              product,
+              quantity,
+              addedAt: new Date().toISOString()
+            };
 
-          return [...currentItems, newItem];
-        }
-      });
-      toast.success(`Added ${product.name} to cart`);
+            if (weightOption) {
+              newItem.weightOption = {
+                label: weightOption.label,
+                grams: weightOption.grams,
+                price: weightOption.price
+              };
+              newItem.price = weightOption.price;
+            } else {
+              newItem.price = product.price;
+            }
+
+            return [...currentItems, newItem];
+          }
+        });
+        toast.success(`Added ${product.name} to cart (localStorage)`);
+      }
     } finally {
       setIsUpdating(false);
     }
