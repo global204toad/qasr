@@ -78,9 +78,6 @@ const ProductCard = ({ product, className = '' }) => {
                   📦
                 </div>
                 <span className="text-sm">No Image</span>
-                <div className="text-xs mt-1 text-gray-500">
-                  URL: {imageUrl}
-                </div>
               </div>
             </div>
           )}
@@ -113,8 +110,8 @@ const ProductCard = ({ product, className = '' }) => {
                   <Star
                     key={i}
                     className={`w-4 h-4 ${i < Math.floor(product.rating.average)
-                        ? 'text-yellow-400 fill-current'
-                        : 'text-gray-300'
+                      ? 'text-yellow-400 fill-current'
+                      : 'text-gray-300'
                       }`}
                   />
                 ))}
