@@ -5,7 +5,8 @@ import toast from 'react-hot-toast';
 // Create axios instance with environment-based URL
 // For local development: http://localhost:5000/api
 // For production (Vercel): /api (serverless functions)
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const isProduction = process.env.NODE_ENV === 'production';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || (isProduction ? '/api' : 'http://localhost:5000/api');
 
 const api = axios.create({
   baseURL: API_BASE_URL,
