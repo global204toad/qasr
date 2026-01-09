@@ -142,6 +142,16 @@ export const CartProvider = ({ children }) => {
       toast.success(`Added ${product.name} to cart`);
     } catch (err) {
       console.error('❌ Error adding item to cart:', err);
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status
+      });
+
+      // Show specific error message if available
+      const errorMessage = err.response?.data?.message || 'Failed to add item to cart';
+      toast.error(errorMessage);
+
       // Fallback to localStorage if API fails
       setItems(currentItems => {
         const existingItem = currentItems.find(item => {
