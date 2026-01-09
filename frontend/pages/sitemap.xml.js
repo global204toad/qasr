@@ -1,11 +1,11 @@
 // Dynamic sitemap generation for SEO
-import { productsAPI } from '../../lib/api';
-import { SITE_CONFIG } from '../../lib/seo';
+import { productsAPI } from '../lib/api';
+import { SITE_CONFIG } from '../lib/seo';
 
 function generateSiteMap(products) {
-    const baseUrl = SITE_CONFIG.siteUrl;
+  const baseUrl = SITE_CONFIG.siteUrl;
 
-    return `<?xml version="1.0" encoding="UTF-8"?>
+  return `<?xml version="1.0" encoding="UTF-8"?>
    <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
            xmlns:xhtml="http://www.w3.org/1999/xhtml">
      <!-- Homepage -->
@@ -68,8 +68,8 @@ function generateSiteMap(products) {
      
      <!-- Individual Product Pages -->
      ${products
-            .map((product) => {
-                return `
+      .map((product) => {
+        return `
        <url>
          <loc>${baseUrl}/products/${product._id}</loc>
          <lastmod>${product.updatedAt || new Date().toISOString()}</lastmod>
@@ -79,45 +79,45 @@ function generateSiteMap(products) {
          <xhtml:link rel="alternate" hreflang="en" href="${baseUrl}/en/products/${product._id}"/>
        </url>
      `;
-            })
-            .join('')}
+      })
+      .join('')}
    </urlset>
  `;
 }
 
 export async function getServerSideProps({ res }) {
-    try {
-        // Fetch all products
-        const response = await productsAPI.getAll({ limit: 1000 });
-        const products = response.data.data || [];
+  try {
+    // Fetch all products
+    const response = await productsAPI.getAll({ limit: 1000 });
+    const products = response.data.data || [];
 
-        // Generate the XML sitemap
-        const sitemap = generateSiteMap(products);
+    // Generate the XML sitemap
+    const sitemap = generateSiteMap(products);
 
-        res.setHeader('Content-Type', 'text/xml');
-        res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate');
-        res.write(sitemap);
-        res.end();
+    res.setHeader('Content-Type', 'text/xml');
+    res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate');
+    res.write(sitemap);
+    res.end();
 
-        return {
-            props: {},
-        };
-    } catch (error) {
-        console.error('Error generating sitemap:', error);
+    return {
+      props: {},
+    };
+  } catch (error) {
+    console.error('Error generating sitemap:', error);
 
-        // Return a basic sitemap even if there's an error
-        const basicSitemap = generateSiteMap([]);
-        res.setHeader('Content-Type', 'text/xml');
-        res.write(basicSitemap);
-        res.end();
+    // Return a basic sitemap even if there's an error
+    const basicSitemap = generateSiteMap([]);
+    res.setHeader('Content-Type', 'text/xml');
+    res.write(basicSitemap);
+    res.end();
 
-        return {
-            props: {},
-        };
-    }
+    return {
+      props: {},
+    };
+  }
 }
 
 // Default export to prevent Next.js errors
 export default function Sitemap() {
-    return null;
+  return null;
 }
