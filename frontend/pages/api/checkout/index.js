@@ -13,7 +13,7 @@ async function handler(req, res) {
     try {
         await connectToDatabase();
 
-        const { shippingAddress, paymentMethod = 'cash_on_delivery', notes, shippingCost: providedShippingCost } = req.body;
+        const { shippingAddress, paymentMethod = 'cash_on_delivery', notes, shippingCost: providedShippingCost, cartItems } = req.body;
 
         // Validate shipping address
         if (!shippingAddress || !shippingAddress.street || !shippingAddress.city) {
@@ -23,70 +23,118 @@ async function handler(req, res) {
             });
         }
 
-        // Get user's cart with product details
+        let orderItems = [];
+        let orderTotal = 0;
+
+        // Try to get cart from database first (for authenticated users)
         const cart = await Cart.findOne({ user: req.user._id })
             .populate({
                 path: 'items.product',
                 select: 'name price images isActive inventory weightOptions'
             });
 
-        if (!cart || !cart.items || cart.items.length === 0) {
+        // If cart exists in database and has items, use it
+        if (cart && cart.items && cart.items.length > 0) {
+            // Validate cart items and check inventory
+            for (const cartItem of cart.items) {
+                if (!cartItem.product || !cartItem.product.isActive) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Some products in your cart are no longer available'
+                    });
+                }
+
+                const product = await Product.findById(cartItem.product._id);
+
+                if (!product || !product.isActive) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Product "${cartItem.product.name}" is no longer available`
+                    });
+                }
+
+                // Check inventory
+                if (product.inventory?.trackQuantity) {
+                    if (product.inventory.quantity < cartItem.quantity) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Insufficient stock for "${product.name}". Only ${product.inventory.quantity} available.`
+                        });
+                    }
+
+                    // Update product inventory
+                    product.inventory.quantity -= cartItem.quantity;
+                    await product.save();
+                }
+
+                // Calculate item total
+                const itemPrice = cartItem.price || cartItem.weightOption?.price || product.price;
+                const itemTotal = itemPrice * cartItem.quantity;
+                orderTotal += itemTotal;
+
+                orderItems.push({
+                    product: product._id,
+                    name: product.name,
+                    price: itemPrice,
+                    quantity: cartItem.quantity,
+                    total: itemTotal,
+                    image: product.images?.[0]?.url || '',
+                    weightOption: cartItem.weightOption || null
+                });
+            }
+        }
+        // If no cart in database, check if cart items were provided in request (for localStorage cart)
+        else if (cartItems && Array.isArray(cartItems) && cartItems.length > 0) {
+            console.log('Using cart items from request body (localStorage cart)');
+
+            for (const item of cartItems) {
+                const product = await Product.findById(item.product._id || item.product);
+
+                if (!product || !product.isActive) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Product "${item.name || 'Unknown'}" is no longer available`
+                    });
+                }
+
+                // Check inventory
+                if (product.inventory?.trackQuantity) {
+                    if (product.inventory.quantity < item.quantity) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Insufficient stock for "${product.name}". Only ${product.inventory.quantity} available.`
+                        });
+                    }
+
+                    // Update product inventory
+                    product.inventory.quantity -= item.quantity;
+                    await product.save();
+                }
+
+                const itemPrice = item.price || item.weightOption?.price || product.price;
+                const itemTotal = itemPrice * item.quantity;
+                orderTotal += itemTotal;
+
+                orderItems.push({
+                    product: product._id,
+                    name: product.name,
+                    price: itemPrice,
+                    quantity: item.quantity,
+                    total: itemTotal,
+                    image: product.images?.[0]?.url || '',
+                    weightOption: item.weightOption || null
+                });
+            }
+        }
+        // No cart found anywhere
+        else {
             return res.status(400).json({
                 success: false,
                 message: 'Cart is empty'
             });
         }
 
-        // Validate cart items and check inventory
-        const orderItems = [];
-        let orderTotal = 0;
 
-        for (const cartItem of cart.items) {
-            if (!cartItem.product || !cartItem.product.isActive) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Some products in your cart are no longer available'
-                });
-            }
-
-            const product = await Product.findById(cartItem.product._id);
-
-            if (!product || !product.isActive) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Product "${cartItem.product.name}" is no longer available`
-                });
-            }
-
-            // Check inventory
-            if (product.inventory?.trackQuantity) {
-                if (product.inventory.quantity < cartItem.quantity) {
-                    return res.status(400).json({
-                        success: false,
-                        message: `Insufficient stock for "${product.name}". Only ${product.inventory.quantity} available.`
-                    });
-                }
-
-                // Update product inventory
-                product.inventory.quantity -= cartItem.quantity;
-                await product.save();
-            }
-
-            // Calculate item total
-            const itemPrice = cartItem.price || cartItem.weightOption?.price || product.price;
-            const itemTotal = itemPrice * cartItem.quantity;
-            orderTotal += itemTotal;
-
-            orderItems.push({
-                product: product._id,
-                name: product.name,
-                price: itemPrice,
-                quantity: cartItem.quantity,
-                total: itemTotal,
-                image: product.images?.[0]?.url || '',
-                weightOption: cartItem.weightOption || null
-            });
-        }
 
         // Calculate shipping based on city
         let shippingCost = 100; // Default for other cities

@@ -56,7 +56,7 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
   const { items, totals, clearCart } = useCart();
-  
+
   const [step, setStep] = useState(1); // 1: Shipping, 2: Payment, 3: Complete
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
@@ -123,7 +123,7 @@ export default function CheckoutPage() {
       ...prev,
       [name]: value
     }));
-    
+
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
@@ -139,7 +139,7 @@ export default function CheckoutPage() {
       city: city
     }));
     setShowCityDropdown(false);
-    
+
     if (errors.city) {
       setErrors(prev => ({
         ...prev,
@@ -150,7 +150,7 @@ export default function CheckoutPage() {
 
   const validateShipping = () => {
     const newErrors = {};
-    
+
     if (!shippingData.firstName.trim()) newErrors.firstName = 'First name is required';
     if (!shippingData.lastName.trim()) newErrors.lastName = 'Last name is required';
     if (!shippingData.email.trim()) {
@@ -176,6 +176,16 @@ export default function CheckoutPage() {
   const createOrder = async () => {
     try {
       const shippingCost = calculateShipping(shippingData.city);
+
+      // Prepare cart items for the request
+      const cartItemsForCheckout = items.map(item => ({
+        product: item.product._id,
+        name: item.product.name,
+        price: item.price || item.weightOption?.price || item.product.price,
+        quantity: item.quantity,
+        weightOption: item.weightOption || null
+      }));
+
       const response = await api.post('/checkout', {
         shippingAddress: {
           fullName: `${shippingData.firstName} ${shippingData.lastName}`,
@@ -188,7 +198,8 @@ export default function CheckoutPage() {
         },
         paymentMethod: 'cash_on_delivery',
         shippingCost: shippingCost,
-        notes: `Payment Method: Cash on Delivery`
+        notes: `Payment Method: Cash on Delivery`,
+        cartItems: cartItemsForCheckout // Send cart items from localStorage/context
       });
 
       console.log('Order created successfully:', response.data);
@@ -210,11 +221,11 @@ export default function CheckoutPage() {
 
     setLoading(true);
     setErrors({});
-    
+
     try {
       // Create order (email is automatically sent by backend)
       const orderData = await createOrder();
-      
+
       if (orderData && orderData.success) {
         // Clear cart and go to success step
         await clearCart();
@@ -255,20 +266,18 @@ export default function CheckoutPage() {
                 { step: 3, label: 'Complete', icon: CheckCircle }
               ].map(({ step: stepNum, label, icon: Icon }) => (
                 <div key={stepNum} className="flex flex-col sm:flex-row items-center">
-                  <div className={`flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 ${
-                    step >= stepNum
+                  <div className={`flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 ${step >= stepNum
                       ? 'bg-primary-600 border-primary-600 text-white'
                       : 'border-gray-300 text-gray-400'
-                  }`}>
+                    }`}>
                     {step > stepNum ? (
                       <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6" />
                     ) : (
                       <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
                     )}
                   </div>
-                  <span className={`mt-1 sm:mt-0 sm:ml-2 text-xs sm:text-sm font-medium ${
-                    step >= stepNum ? 'text-primary-600' : 'text-gray-400'
-                  }`}>
+                  <span className={`mt-1 sm:mt-0 sm:ml-2 text-xs sm:text-sm font-medium ${step >= stepNum ? 'text-primary-600' : 'text-gray-400'
+                    }`}>
                     {label}
                   </span>
                 </div>
@@ -319,7 +328,7 @@ export default function CheckoutPage() {
                     /* Shipping Information */
                     <div>
                       <h2 className="text-xl font-semibold text-gray-900 mb-6">Shipping Information</h2>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -330,9 +339,8 @@ export default function CheckoutPage() {
                             name="firstName"
                             value={shippingData.firstName}
                             onChange={handleShippingChange}
-                            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                              errors.firstName ? 'border-red-300' : 'border-gray-300'
-                            }`}
+                            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${errors.firstName ? 'border-red-300' : 'border-gray-300'
+                              }`}
                           />
                           {errors.firstName && (
                             <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>
@@ -348,9 +356,8 @@ export default function CheckoutPage() {
                             name="lastName"
                             value={shippingData.lastName}
                             onChange={handleShippingChange}
-                            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                              errors.lastName ? 'border-red-300' : 'border-gray-300'
-                            }`}
+                            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${errors.lastName ? 'border-red-300' : 'border-gray-300'
+                              }`}
                           />
                           {errors.lastName && (
                             <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>
@@ -366,9 +373,8 @@ export default function CheckoutPage() {
                             name="email"
                             value={shippingData.email}
                             onChange={handleShippingChange}
-                            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                              errors.email ? 'border-red-300' : 'border-gray-300'
-                            }`}
+                            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${errors.email ? 'border-red-300' : 'border-gray-300'
+                              }`}
                           />
                           {errors.email && (
                             <p className="mt-1 text-sm text-red-600">{errors.email}</p>
@@ -384,9 +390,8 @@ export default function CheckoutPage() {
                             name="phone"
                             value={shippingData.phone}
                             onChange={handleShippingChange}
-                            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                              errors.phone ? 'border-red-300' : 'border-gray-300'
-                            }`}
+                            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${errors.phone ? 'border-red-300' : 'border-gray-300'
+                              }`}
                           />
                           {errors.phone && (
                             <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
@@ -402,9 +407,8 @@ export default function CheckoutPage() {
                             name="address"
                             value={shippingData.address}
                             onChange={handleShippingChange}
-                            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                              errors.address ? 'border-red-300' : 'border-gray-300'
-                            }`}
+                            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${errors.address ? 'border-red-300' : 'border-gray-300'
+                              }`}
                           />
                           {errors.address && (
                             <p className="mt-1 text-sm text-red-600">{errors.address}</p>
@@ -421,9 +425,8 @@ export default function CheckoutPage() {
                             value={shippingData.city}
                             onChange={handleShippingChange}
                             onFocus={() => setShowCityDropdown(true)}
-                            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                              errors.city ? 'border-red-300' : 'border-gray-300'
-                            }`}
+                            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${errors.city ? 'border-red-300' : 'border-gray-300'
+                              }`}
                             placeholder="Select a city"
                           />
                           {showCityDropdown && (
@@ -454,9 +457,8 @@ export default function CheckoutPage() {
                             name="zipCode"
                             value={shippingData.zipCode}
                             onChange={handleShippingChange}
-                            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                              errors.zipCode ? 'border-red-300' : 'border-gray-300'
-                            }`}
+                            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${errors.zipCode ? 'border-red-300' : 'border-gray-300'
+                              }`}
                           />
                           {errors.zipCode && (
                             <p className="mt-1 text-sm text-red-600">{errors.zipCode}</p>
@@ -483,7 +485,7 @@ export default function CheckoutPage() {
                     /* Payment Information */
                     <div>
                       <h2 className="text-xl font-semibold text-gray-900 mb-6">Payment Method</h2>
-                      
+
                       <div className="space-y-4">
                         <div className="border border-gray-200 rounded-lg p-4">
                           <div className="flex items-center">
@@ -541,28 +543,28 @@ export default function CheckoutPage() {
               <div className="lg:col-span-1">
                 <div className="bg-white rounded-lg shadow-sm p-6 sticky top-4">
                   <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h2>
-                  
+
                   <div className="space-y-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Subtotal</span>
                       <span className="text-gray-900">{formatCurrency(orderTotals.subtotal)}</span>
                     </div>
-                    
+
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Shipping</span>
                       <span className="text-gray-900">
-                        {shippingData.city 
+                        {shippingData.city
                           ? formatCurrency(orderTotals.shipping)
                           : 'Select city'
                         }
                       </span>
                     </div>
-                    
+
                     <div className="border-t border-gray-200 pt-3">
                       <div className="flex justify-between text-lg font-semibold">
                         <span className="text-gray-900">Total</span>
                         <span className="text-gray-900">
-                          {shippingData.city 
+                          {shippingData.city
                             ? formatCurrency(orderTotals.total)
                             : formatCurrency(orderTotals.subtotal)
                           }
