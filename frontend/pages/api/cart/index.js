@@ -25,19 +25,8 @@ const getUserFromRequest = async (req) => {
 };
 
 async function handler(req, res) {
-    // Check authentication BEFORE connecting to database
-    let user = null;
-    try {
-        user = await getUserFromRequest(req);
-    } catch (authError) {
-        console.error('Auth check error:', authError.message);
-        user = null;
-    }
-
-    // Connect to database only if needed (for authenticated users)
-    if (user && user.userId) {
-        await connectToDatabase();
-    }
+    // Always connect to database first
+    await connectToDatabase();
 
     switch (req.method) {
         case 'GET':
