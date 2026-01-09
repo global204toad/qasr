@@ -1,7 +1,22 @@
-import { withAuth } from '../../../lib/auth';
 import connectToDatabase from '../../../lib/mongodb';
 import Cart from '../../../models/Cart';
 import Product from '../../../models/Product';
+import { verifyToken } from '../../../lib/auth';
+
+// Helper to get user from request (optional authentication)
+const getUserFromRequest = async (req) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return null;
+        }
+        const token = authHeader.split(' ')[1];
+        const decoded = verifyToken(token);
+        return decoded;
+    } catch (error) {
+        return null;
+    }
+};
 
 async function handler(req, res) {
     await connectToDatabase();
@@ -21,7 +36,22 @@ async function handler(req, res) {
 // Get user's cart
 async function getCart(req, res) {
     try {
-        const cart = await Cart.findOne({ user: req.user._id })
+        const user = await getUserFromRequest(req);
+
+        // If no user, return empty cart (guest user)
+        if (!user || !user.userId) {
+            return res.status(200).json({
+                success: true,
+                data: {
+                    items: [],
+                    totalAmount: 0,
+                    totalItems: 0
+                },
+                message: 'Guest cart - items stored in localStorage'
+            });
+        }
+
+        const cart = await Cart.findOne({ user: user.userId })
             .populate({
                 path: 'items.product',
                 select: 'name price images isActive inventory weightOptions'
@@ -76,6 +106,33 @@ async function getCart(req, res) {
 async function addToCart(req, res) {
     try {
         const { productId, quantity = 1, weightOption } = req.body;
+        const user = await getUserFromRequest(req);
+
+        // If no user (guest), return success - cart will be managed in localStorage
+        if (!user || !user.userId) {
+            // Still validate the product exists
+            const product = await Product.findOne({
+                _id: productId,
+                isActive: true
+            });
+
+            if (!product) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Product not found or inactive'
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: 'Item added to cart (localStorage)',
+                data: {
+                    items: [], // Guest cart managed in frontend
+                    totalAmount: 0,
+                    totalItems: 0
+                }
+            });
+        }
 
         if (!productId) {
             return res.status(400).json({
@@ -140,11 +197,11 @@ async function addToCart(req, res) {
         }
 
         // Find or create user's cart
-        let cart = await Cart.findOne({ user: req.user._id });
+        let cart = await Cart.findOne({ user: user.userId });
 
         if (!cart) {
             cart = new Cart({
-                user: req.user._id,
+                user: user.userId,
                 items: []
             });
         }
@@ -221,7 +278,22 @@ async function addToCart(req, res) {
 // Clear entire cart
 async function clearCart(req, res) {
     try {
-        await Cart.findOneAndDelete({ user: req.user._id });
+        const user = await getUserFromRequest(req);
+
+        // If no user (guest), return success
+        if (!user || !user.userId) {
+            return res.status(200).json({
+                success: true,
+                message: 'Cart cleared (localStorage)',
+                data: {
+                    items: [],
+                    totalAmount: 0,
+                    totalItems: 0
+                }
+            });
+        }
+
+        await Cart.findOneAndDelete({ user: user.userId });
 
         res.status(200).json({
             success: true,
@@ -243,4 +315,5 @@ async function clearCart(req, res) {
     }
 }
 
-export default withAuth(handler);
+// Export without auth requirement - cart should work for both authenticated and guest users
+export default handler;
