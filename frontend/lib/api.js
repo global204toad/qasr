@@ -164,12 +164,15 @@ export const getAuthToken = () => {
 };
 
 export const setAuthToken = (token) => {
+  // Determine if we're in production
+  const isProduction = process.env.NODE_ENV === 'production';
+
   // Set the main token cookie
   Cookies.set('token', token, {
     expires: 30, // 30 days
-    secure: false, // Set to false for localhost development
-    sameSite: 'lax'
-    // Remove domain restriction for localhost development
+    secure: isProduction, // true in production (HTTPS), false in development
+    sameSite: 'lax',
+    path: '/'
   });
 
   // Also set in localStorage as backup

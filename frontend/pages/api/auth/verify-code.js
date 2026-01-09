@@ -104,12 +104,14 @@ export default async function handler(req, res) {
                 success: true,
                 message: 'Login successful! Welcome back.',
                 token,
-                user: {
-                    _id: user._id,
-                    email: user.email,
-                    name: user.name,
-                    isAdmin: user.isAdmin || false,
-                    isVerified: user.isVerified
+                data: {
+                    user: {
+                        _id: user._id,
+                        email: user.email,
+                        name: user.name,
+                        isAdmin: user.isAdmin || false,
+                        isVerified: user.isVerified
+                    }
                 }
             });
         } else {
@@ -145,12 +147,14 @@ export default async function handler(req, res) {
                 success: true,
                 message: 'Account created successfully! Welcome to ALKASR.',
                 token,
-                user: {
-                    _id: user._id,
-                    email: user.email,
-                    name: user.name,
-                    isAdmin: user.isAdmin || false,
-                    isVerified: user.isVerified
+                data: {
+                    user: {
+                        _id: user._id,
+                        email: user.email,
+                        name: user.name,
+                        isAdmin: user.isAdmin || false,
+                        isVerified: user.isVerified
+                    }
                 }
             });
         }
