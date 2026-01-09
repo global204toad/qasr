@@ -68,99 +68,152 @@ const Header = () => {
         {/* Main header */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div className="flex-shrink-0">
+
+            {/* Mobile Layout (< md) */}
+            <div className="flex md:hidden items-center justify-between w-full">
+              {/* Left: Hamburger Menu */}
+              <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-luxury-burgundy hover:text-luxury-burgundy-light transition-all"
+                aria-label="Open menu"
+              >
+                <MenuIcon className="w-6 h-6" />
+              </button>
+
+              {/* Center: Logo */}
               <Link href="/" className="flex items-center">
                 <Image
                   src="/el-2aser-logo.png"
-                  alt="ALKASR - عطارة وتحميص حبات القصر"
-                  width={120}
-                  height={90}
-                  className="h-10 sm:h-12 w-auto"
+                  alt="ALKASR"
+                  width={100}
+                  height={75}
+                  className="h-10 w-auto"
                   priority
                 />
               </Link>
+
+              {/* Right: Action Icons */}
+              <div className="flex items-center space-x-1">
+                {/* Language Switch */}
+                <LanguageSwitch />
+
+                {/* Search */}
+                <button
+                  onClick={() => setIsSearchOpen(true)}
+                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-luxury-burgundy hover:text-luxury-burgundy-light transition-all"
+                  aria-label={t('search')}
+                >
+                  <SearchIcon className="w-5 h-5" />
+                </button>
+
+                {/* Cart */}
+                <button
+                  onClick={() => setIsCartOpen(true)}
+                  className="relative p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-luxury-burgundy hover:text-luxury-burgundy-light transition-all"
+                  aria-label={t('cart')}
+                >
+                  <ShoppingCartIcon className="w-5 h-5" />
+                  {totals.items > 0 && (
+                    <span className="absolute top-0 right-0 gold-gradient text-luxury-cream text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold shadow-lg">
+                      {totals.items > 99 ? '99+' : totals.items}
+                    </span>
+                  )}
+                </button>
+              </div>
             </div>
 
-            {/* Desktop Navigation - Forced on Mobile */}
-            <nav className="flex space-x-2 sm:space-x-4 md:space-x-8 overflow-x-auto no-scrollbar">
-              {navigation.map((item) => (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`text-luxury-burgundy hover:text-luxury-burgundy-light px-3 py-2 text-sm font-medium transition-all duration-300 ${router.pathname === item.href ? 'text-luxury-burgundy-light border-b-2 border-luxury-burgundy-light' : ''
-                    }`}
-                  onClick={(e) => {
-                    // Prevent navigation to the same page
-                    if (router.pathname === item.href) {
-                      e.preventDefault();
-                    }
-                  }}
-                >
-                  {item.name}
+            {/* Desktop Layout (>= md) */}
+            <div className="hidden md:flex items-center justify-between w-full">
+              {/* Logo */}
+              <div className="flex-shrink-0">
+                <Link href="/" className="flex items-center">
+                  <Image
+                    src="/el-2aser-logo.png"
+                    alt="ALKASR - عطارة وتحميص حبات القصر"
+                    width={120}
+                    height={90}
+                    className="h-12 w-auto"
+                    priority
+                  />
                 </Link>
-              ))}
-            </nav>
-
-            {/* Right side actions */}
-            <div className={`flex items-center ${isRTL ? 'space-x-reverse' : 'space-x-2'} sm:${isRTL ? 'space-x-reverse' : 'space-x-4'}`}>
-              {/* Language Switch */}
-              <div className="hidden sm:block">
-                <LanguageSwitch />
               </div>
 
-              {/* Search */}
-              <button
-                onClick={() => setIsSearchOpen(true)}
-                className="p-2 sm:p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-luxury-burgundy hover:text-luxury-burgundy-light transition-all duration-300 hover:scale-110"
-                aria-label={t('search')}
-              >
-                <SearchIcon className="w-5 h-5 sm:w-6 sm:h-6" />
-              </button>
-
-              {/* Cart */}
-              <button
-                onClick={() => setIsCartOpen(true)}
-                className="relative p-2 sm:p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-luxury-burgundy hover:text-luxury-burgundy-light transition-all duration-300 hover:scale-110"
-                aria-label={t('cart')}
-              >
-                <ShoppingCartIcon className="w-5 h-5 sm:w-6 sm:h-6" />
-                {totals.items > 0 && (
-                  <span className="absolute top-0 right-0 gold-gradient text-luxury-cream text-xs rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center font-semibold shadow-lg">
-                    {totals.items > 99 ? '99+' : totals.items}
-                  </span>
-                )}
-              </button>
-
-              {/* User menu */}
-              {isAuthenticated ? (
-                <div className="relative" ref={userMenuRef}>
-                  <button
-                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                    className="flex items-center space-x-2 p-2 text-luxury-burgundy hover:text-luxury-burgundy-light transition-all duration-300"
+              {/* Desktop Navigation */}
+              <nav className="flex space-x-8">
+                {navigation.map((item) => (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`text-luxury-burgundy hover:text-luxury-burgundy-light px-3 py-2 text-sm font-medium transition-all duration-300 ${router.pathname === item.href ? 'text-luxury-burgundy-light border-b-2 border-luxury-burgundy-light' : ''
+                      }`}
+                    onClick={(e) => {
+                      if (router.pathname === item.href) {
+                        e.preventDefault();
+                      }
+                    }}
                   >
-                    <div className="w-8 h-8 gold-gradient rounded-full flex items-center justify-center shadow-lg">
-                      <span className="text-luxury-cream text-sm font-bold">
-                        {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-                      </span>
-                    </div>
-                    <span className="hidden md:block text-sm font-medium">
-                      {user?.name}
-                    </span>
-                  </button>
-
-                  {isUserMenuOpen && (
-                    <UserMenu onClose={() => setIsUserMenuOpen(false)} />
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center space-x-2">
-                  <Link href="/sign-in" className="text-luxury-burgundy hover:text-luxury-burgundy-light text-sm font-medium transition-all duration-300">
-                    {t('signIn')}
+                    {item.name}
                   </Link>
-                </div>
-              )}
+                ))}
+              </nav>
 
+              {/* Right side actions */}
+              <div className={`flex items-center ${isRTL ? 'space-x-reverse' : 'space-x-4'}`}>
+                {/* Language Switch */}
+                <LanguageSwitch />
+
+                {/* Search */}
+                <button
+                  onClick={() => setIsSearchOpen(true)}
+                  className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-luxury-burgundy hover:text-luxury-burgundy-light transition-all duration-300 hover:scale-110"
+                  aria-label={t('search')}
+                >
+                  <SearchIcon className="w-6 h-6" />
+                </button>
+
+                {/* Cart */}
+                <button
+                  onClick={() => setIsCartOpen(true)}
+                  className="relative p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-luxury-burgundy hover:text-luxury-burgundy-light transition-all duration-300 hover:scale-110"
+                  aria-label={t('cart')}
+                >
+                  <ShoppingCartIcon className="w-6 h-6" />
+                  {totals.items > 0 && (
+                    <span className="absolute top-0 right-0 gold-gradient text-luxury-cream text-xs rounded-full w-6 h-6 flex items-center justify-center font-semibold shadow-lg">
+                      {totals.items > 99 ? '99+' : totals.items}
+                    </span>
+                  )}
+                </button>
+
+                {/* User menu */}
+                {isAuthenticated ? (
+                  <div className="relative" ref={userMenuRef}>
+                    <button
+                      onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                      className="flex items-center space-x-2 p-2 text-luxury-burgundy hover:text-luxury-burgundy-light transition-all duration-300"
+                    >
+                      <div className="w-8 h-8 gold-gradient rounded-full flex items-center justify-center shadow-lg">
+                        <span className="text-luxury-cream text-sm font-bold">
+                          {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                        </span>
+                      </div>
+                      <span className="hidden md:block text-sm font-medium">
+                        {user?.name}
+                      </span>
+                    </button>
+
+                    {isUserMenuOpen && (
+                      <UserMenu onClose={() => setIsUserMenuOpen(false)} />
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <Link href="/sign-in" className="text-luxury-burgundy hover:text-luxury-burgundy-light text-sm font-medium transition-all duration-300">
+                      {t('signIn')}
+                    </Link>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

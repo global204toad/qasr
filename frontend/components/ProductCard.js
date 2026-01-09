@@ -78,6 +78,9 @@ const ProductCard = ({ product, className = '' }) => {
                   📦
                 </div>
                 <span className="text-sm">No Image</span>
+                <div className="text-xs mt-1 text-gray-500">
+                  URL: {imageUrl}
+                </div>
               </div>
             </div>
           )}
