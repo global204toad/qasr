@@ -153,8 +153,13 @@ export default function ProductsPage() {
             muted
             loop
             playsInline
+            webkit-playsinline="true"
+            preload="auto"
             className="absolute inset-0 w-full h-full object-cover"
-            style={{ backgroundColor: '#800020' }} // Fallback burgundy color
+            style={{ backgroundColor: '#800020' }}
+            onLoadedData={(e) => {
+              e.target.play().catch(err => console.log('Video autoplay prevented:', err));
+            }}
           >
             <source src="/images/El montag.MP4" type="video/mp4" />
             Your browser does not support the video tag.
