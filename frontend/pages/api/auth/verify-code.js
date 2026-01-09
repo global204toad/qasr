@@ -3,9 +3,8 @@ import connectToDatabase from '../../../lib/mongodb';
 import User from '../../../models/User';
 import { generateToken } from '../../../lib/auth';
 
-// Import the OTP storage from send-code
-// Note: In production, use Redis or database instead of in-memory storage
-const otpCodes = new Map();
+// Import the shared OTP storage from send-code
+import { otpCodes } from './send-code';
 const hashOTP = (otp) => {
     return crypto.createHash('sha256').update(otp).digest('hex');
 };
