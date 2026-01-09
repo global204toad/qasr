@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Star, Users, Award, Truck, Shield, Heart } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -97,11 +98,10 @@ export default function AboutPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-6 py-2 rounded-md text-sm font-medium transition-colors ${
-                    activeTab === tab.id
+                  className={`px-6 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === tab.id
                       ? 'bg-white text-primary-600 shadow-sm'
                       : 'text-gray-600 hover:text-gray-900'
-                  }`}
+                    }`}
                 >
                   {tab.label}
                 </button>
@@ -119,22 +119,22 @@ export default function AboutPage() {
                     {t('howItAllStarted')}
                   </h2>
                 </div>
-                
+
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                   <div className="space-y-6">
                     <p className="text-lg text-gray-600 leading-relaxed">
                       {t('ourJourneyBegan')}
                     </p>
-                    
+
                     <p className="text-gray-600 leading-relaxed">
                       {t('weBelieveGoodFood')}
                     </p>
-                    
+
                     <p className="text-gray-600 leading-relaxed">
                       {t('todayWeAreProud')}
                     </p>
                   </div>
-                  
+
                   <div className="relative">
                     <div className="aspect-square bg-gray-200 rounded-lg overflow-hidden">
                       <img
@@ -214,18 +214,18 @@ export default function AboutPage() {
               {t('haveQuestions')}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <a
+              <Link
                 href="/contact"
                 className="inline-flex items-center px-6 py-3 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors"
               >
                 {t('contactUs')}
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/products"
                 className="inline-flex items-center px-6 py-3 border-2 border-primary-600 text-primary-600 font-semibold rounded-lg hover:bg-primary-600 hover:text-white transition-colors"
               >
                 {t('shopNow')}
-              </a>
+              </Link>
             </div>
           </div>
         </div>
