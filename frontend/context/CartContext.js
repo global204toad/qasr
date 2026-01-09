@@ -35,7 +35,24 @@ export const CartProvider = ({ children }) => {
         } else {
           // User authenticated, fetch from API
           const response = await cartAPI.getCart();
-          setItems(response.data.data.items || []);
+          const apiCartItems = response.data.data.items || [];
+
+          // Check if there are items in localStorage that need to be synced
+          const localCart = storage.get(CART_STORAGE_KEY, []);
+
+          if (localCart.length > 0 && apiCartItems.length === 0) {
+            // Sync localStorage cart to database
+            console.log('Syncing localStorage cart to database...');
+            await syncLocalCartToDatabase(localCart);
+            // Fetch cart again after sync
+            const updatedResponse = await cartAPI.getCart();
+            setItems(updatedResponse.data.data.items || []);
+            // Clear localStorage cart after successful sync
+            storage.remove(CART_STORAGE_KEY);
+          } else {
+            setItems(apiCartItems);
+          }
+
           setError(null);
         }
       } catch (err) {
@@ -64,10 +81,10 @@ export const CartProvider = ({ children }) => {
     try {
       setIsUpdating(true);
       console.log(`🛒 Adding ${product.name} to cart...`);
-      
+
       // Check if user is authenticated
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      
+
       if (token) {
         // User authenticated, use API
         const response = await cartAPI.addToCart(product._id, quantity, weightOption);
@@ -79,21 +96,21 @@ export const CartProvider = ({ children }) => {
           const existingItem = currentItems.find(item => {
             const sameProduct = item.product._id === product._id;
             if (weightOption) {
-              const sameWeight = item.weightOption && 
+              const sameWeight = item.weightOption &&
                 item.weightOption.grams === weightOption.grams;
               return sameProduct && sameWeight;
             }
             return sameProduct && !item.weightOption;
           });
-          
+
           if (existingItem) {
             // Update quantity if item already exists
             const updatedItems = currentItems.map(item => {
               const isSameItem = weightOption
-                ? (item.product._id === product._id && 
-                   item.weightOption?.grams === weightOption.grams)
+                ? (item.product._id === product._id &&
+                  item.weightOption?.grams === weightOption.grams)
                 : (item.product._id === product._id && !item.weightOption);
-              
+
               return isSameItem
                 ? { ...item, quantity: item.quantity + quantity }
                 : item;
@@ -106,7 +123,7 @@ export const CartProvider = ({ children }) => {
               quantity,
               addedAt: new Date().toISOString()
             };
-            
+
             if (weightOption) {
               newItem.weightOption = {
                 label: weightOption.label,
@@ -117,7 +134,7 @@ export const CartProvider = ({ children }) => {
             } else {
               newItem.price = product.price;
             }
-            
+
             return [...currentItems, newItem];
           }
         });
@@ -130,20 +147,20 @@ export const CartProvider = ({ children }) => {
         const existingItem = currentItems.find(item => {
           const sameProduct = item.product._id === product._id;
           if (weightOption) {
-            const sameWeight = item.weightOption && 
+            const sameWeight = item.weightOption &&
               item.weightOption.grams === weightOption.grams;
             return sameProduct && sameWeight;
           }
           return sameProduct && !item.weightOption;
         });
-        
+
         if (existingItem) {
           const updatedItems = currentItems.map(item => {
             const isSameItem = weightOption
-              ? (item.product._id === product._id && 
-                 item.weightOption?.grams === weightOption.grams)
+              ? (item.product._id === product._id &&
+                item.weightOption?.grams === weightOption.grams)
               : (item.product._id === product._id && !item.weightOption);
-            
+
             return isSameItem
               ? { ...item, quantity: item.quantity + quantity }
               : item;
@@ -155,7 +172,7 @@ export const CartProvider = ({ children }) => {
             quantity,
             addedAt: new Date().toISOString()
           };
-          
+
           if (weightOption) {
             newItem.weightOption = {
               label: weightOption.label,
@@ -166,7 +183,7 @@ export const CartProvider = ({ children }) => {
           } else {
             newItem.price = product.price;
           }
-          
+
           return [...currentItems, newItem];
         }
       });
@@ -181,10 +198,10 @@ export const CartProvider = ({ children }) => {
     try {
       setIsUpdating(true);
       console.log(`🗑️ Removing item ${productId} from cart...`);
-      
+
       // Check if user is authenticated
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      
+
       if (token) {
         // User authenticated, use API
         const response = await cartAPI.removeFromCart(productId);
@@ -225,10 +242,10 @@ export const CartProvider = ({ children }) => {
     try {
       setIsUpdating(true);
       console.log(`🔄 Updating quantity for item ${productId} to ${quantity}...`);
-      
+
       // Check if user is authenticated
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      
+
       if (token) {
         // User authenticated, use API
         const response = await cartAPI.updateQuantity(productId, quantity);
@@ -258,15 +275,38 @@ export const CartProvider = ({ children }) => {
     }
   };
 
+  // Sync localStorage cart to database (called after login)
+  const syncLocalCartToDatabase = async (localCartItems) => {
+    try {
+      console.log(`Syncing ${localCartItems.length} items to database...`);
+
+      for (const item of localCartItems) {
+        try {
+          await cartAPI.addToCart(
+            item.product._id,
+            item.quantity,
+            item.weightOption || null
+          );
+        } catch (err) {
+          console.error(`Failed to sync item ${item.product.name}:`, err);
+        }
+      }
+
+      console.log('Cart sync completed');
+    } catch (err) {
+      console.error('Error syncing cart:', err);
+    }
+  };
+
   // Clear entire cart
   const clearCart = async () => {
     try {
       setIsUpdating(true);
       console.log('🧹 Clearing cart...');
-      
+
       // Check if user is authenticated
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      
+
       if (token) {
         // User authenticated, use API
         await cartAPI.clearCart();
@@ -338,7 +378,7 @@ export const CartProvider = ({ children }) => {
     // This would typically make API calls to validate each item
     // For now, we'll do basic validation
     const invalidItems = [];
-    
+
     for (const item of items) {
       // Check if product still exists and is available
       if (!item.product.isActive) {
@@ -347,17 +387,17 @@ export const CartProvider = ({ children }) => {
           reason: 'Product is no longer available'
         });
       }
-      
+
       // Check stock if tracking is enabled
-      if (item.product.inventory?.trackQuantity && 
-          item.quantity > item.product.inventory.quantity) {
+      if (item.product.inventory?.trackQuantity &&
+        item.quantity > item.product.inventory.quantity) {
         invalidItems.push({
           item,
           reason: `Only ${item.product.inventory.quantity} items available`
         });
       }
     }
-    
+
     return {
       isValid: invalidItems.length === 0,
       invalidItems
@@ -367,7 +407,7 @@ export const CartProvider = ({ children }) => {
   // Sync cart with latest product data
   const syncCart = async (updatedProducts) => {
     if (!updatedProducts || updatedProducts.length === 0) return;
-    
+
     setItems(currentItems => {
       return currentItems.map(item => {
         const updatedProduct = updatedProducts.find(p => p._id === item.product._id);
@@ -387,7 +427,7 @@ export const CartProvider = ({ children }) => {
     // Extract categories from cart items
     const categories = [...new Set(items.map(item => item.product.category))];
     const tags = [...new Set(items.flatMap(item => item.product.tags || []))];
-    
+
     return {
       categories,
       tags,
