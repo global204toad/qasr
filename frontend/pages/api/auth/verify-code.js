@@ -1,10 +1,8 @@
 import crypto from 'crypto';
 import connectToDatabase from '../../../lib/mongodb';
 import User from '../../../models/User';
+import OTP from '../../../models/OTP';
 import { generateToken } from '../../../lib/auth';
-
-// Import the shared OTP storage from send-code
-import { otpCodes } from './send-code';
 const hashOTP = (otp) => {
     return crypto.createHash('sha256').update(otp).digest('hex');
 };
@@ -36,8 +34,11 @@ export default async function handler(req, res) {
 
         const normalizedEmail = email.toLowerCase();
 
-        // Get stored OTP data
-        const storedData = otpCodes.get(normalizedEmail);
+        // Connect to database
+        await connectToDatabase();
+
+        // Get stored OTP data from database
+        const storedData = await OTP.getOTP(normalizedEmail);
 
         if (!storedData) {
             return res.status(400).json({
@@ -47,9 +48,9 @@ export default async function handler(req, res) {
             });
         }
 
-        // Check if OTP has expired
-        if (Date.now() > storedData.expiresAt) {
-            otpCodes.delete(normalizedEmail);
+        // Check if OTP has expired (redundant with TTL but good for immediate feedback)
+        if (Date.now() > storedData.expiresAt.getTime()) {
+            await OTP.deleteOTP(normalizedEmail);
             return res.status(400).json({
                 success: false,
                 message: 'Verification code has expired. Please request a new code.',
@@ -59,8 +60,8 @@ export default async function handler(req, res) {
 
         // Check max verification attempts
         if (storedData.attempts >= 5) {
-            otpCodes.delete(normalizedEmail);
-            return res.status(429).json({
+            await OTP.deleteOTP(normalizedEmail);
+            return res.status(400).json({
                 success: false,
                 message: 'Maximum verification attempts exceeded. Please request a new code.',
                 error: 'MAX_ATTEMPTS_EXCEEDED'
@@ -70,20 +71,19 @@ export default async function handler(req, res) {
         // Verify OTP
         const hashedInputOTP = hashOTP(code);
         if (hashedInputOTP !== storedData.hashedOTP) {
-            // Increment attempts
-            storedData.attempts += 1;
-            otpCodes.set(normalizedEmail, storedData);
+            // Increment attempts in database
+            await OTP.incrementAttempts(normalizedEmail);
 
             return res.status(400).json({
                 success: false,
-                message: `Invalid verification code. ${5 - storedData.attempts} attempts remaining.`,
+                message: `Invalid verification code. ${5 - (storedData.attempts + 1)} attempts remaining.`,
                 error: 'INVALID_CODE',
-                remainingAttempts: 5 - storedData.attempts
+                remainingAttempts: 5 - (storedData.attempts + 1)
             });
         }
 
-        // OTP is valid - clear the stored OTP
-        otpCodes.delete(normalizedEmail);
+        // OTP is valid - clear the stored OTP from database
+        await OTP.deleteOTP(normalizedEmail);
 
         // Connect to database
         await connectToDatabase();

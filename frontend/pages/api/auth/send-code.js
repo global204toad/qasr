@@ -1,17 +1,17 @@
 import crypto from 'crypto';
 import connectToDatabase from '../../../lib/mongodb';
 import User from '../../../models/User';
+import OTP from '../../../models/OTP';
 import { generateToken } from '../../../lib/auth';
 import { sendOTPEmail } from '../../../lib/emailService';
-
-// In-memory storage for OTP (in production, use Redis or database)
-const otpAttempts = new Map();
-const otpCodes = new Map();
 
 // Rate limiting configuration
 const RATE_LIMIT_WINDOW = 10 * 60 * 1000; // 10 minutes
 const MAX_ATTEMPTS_PER_WINDOW = 3;
 const OTP_EXPIRY_TIME = 10 * 60 * 1000; // 10 minutes
+
+// In-memory rate limiting (can be moved to database if needed)
+const otpAttempts = new Map();
 
 // Helper functions
 const generateOTP = () => {
@@ -86,13 +86,13 @@ export default async function handler(req, res) {
         const otp = generateOTP();
         const hashedOTP = hashOTP(otp);
 
-        // Store OTP with expiry
-        otpCodes.set(email.toLowerCase(), {
+        // Store OTP in database with expiry
+        await OTP.createOTP(
+            email.toLowerCase(),
             hashedOTP,
-            expiresAt: Date.now() + OTP_EXPIRY_TIME,
-            attempts: 0,
+            new Date(Date.now() + OTP_EXPIRY_TIME),
             isNewUser
-        });
+        );
 
         // Send OTP via email
         const emailResult = await sendOTPEmail(email, otp, isNewUser);
