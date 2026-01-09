@@ -378,8 +378,8 @@ export default function ProductsPage() {
               <>
                 {/* Products Grid */}
                 <div className={`grid gap-3 sm:gap-6 ${viewMode === 'grid'
-                  ? 'grid-cols-4' // Force 4 columns at all breakpoints for mobile parity
-                  : 'grid-cols-1'
+                    ? 'grid-cols-2 lg:grid-cols-4' // 2 columns on mobile, 4 on desktop
+                    : 'grid-cols-1'
                   }`}>
                   {products.map((product) => (
                     <div key={product._id} onClick={() => handleProductClick(product)} className="cursor-pointer">

@@ -101,8 +101,8 @@ const ProductCard = ({ product, className = '' }) => {
           </div>
 
           {/* Product Name */}
-          <h3 className="font-semibold text-xs sm:text-base text-gray-900 mb-1 sm:mb-2 line-clamp-2 group-hover:text-primary-600 transition-colors">
-            {translateProduct(product.name)}
+          <h3 className="font-semibold text-sm sm:text-base text-gray-900 mb-1 sm:mb-2 line-clamp-2 group-hover:text-primary-600 transition-colors break-words hyphens-auto" lang="en">
+            {translateProduct(product.name, product.nameAr)}
           </h3>
 
           {/* Rating */}
