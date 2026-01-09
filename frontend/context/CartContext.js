@@ -69,9 +69,9 @@ export const CartProvider = ({ children }) => {
     fetchCart();
   }, []);
 
-  // Save cart to localStorage whenever items change (for unauthenticated users)
+  // Save cart to localStorage only for unauthenticated users
   useEffect(() => {
-    if (!loading) {
+    if (!loading && !isAuthenticated()) {
       storage.set(CART_STORAGE_KEY, items);
     }
   }, [items, loading]);
