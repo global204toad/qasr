@@ -76,7 +76,7 @@ async function getCart(req, res) {
             return res.status(200).json({
                 success: true,
                 data: {
-                    user: req.user._id,
+                    user: user.userId,
                     items: [],
                     totalAmount: 0,
                     totalItems: 0

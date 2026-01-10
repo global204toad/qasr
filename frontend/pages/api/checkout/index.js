@@ -1,9 +1,29 @@
-import { withAuth } from '../../../lib/auth';
+import { verifyToken } from '../../../lib/auth';
 import connectToDatabase from '../../../lib/mongodb';
 import Cart from '../../../models/Cart';
 import Product from '../../../models/Product';
 import Order from '../../../models/Order';
 import { sendOrderConfirmationEmail } from '../../../lib/emailService';
+
+// Helper to get user from request (optional authentication)
+const getUserFromRequest = async (req) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return null;
+        }
+        const token = authHeader.split(' ')[1];
+        const decoded = await verifyToken(token);
+
+        return {
+            userId: decoded.userId,
+            email: decoded.email
+        };
+    } catch (error) {
+        console.error('Auth error in checkout API:', error.message);
+        return null;
+    }
+};
 
 async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -26,12 +46,24 @@ async function handler(req, res) {
         let orderItems = [];
         let orderTotal = 0;
 
+        // Try to get authenticated user
+        let user = null;
+        try {
+            user = await getUserFromRequest(req);
+        } catch (authError) {
+            console.error('Auth error in checkout:', authError.message);
+            user = null;
+        }
+
         // Try to get cart from database first (for authenticated users)
-        const cart = await Cart.findOne({ user: req.user._id })
-            .populate({
-                path: 'items.product',
-                select: 'name price images isActive inventory weightOptions'
-            });
+        let cart = null;
+        if (user && user.userId) {
+            cart = await Cart.findOne({ user: user.userId })
+                .populate({
+                    path: 'items.product',
+                    select: 'name price images isActive inventory weightOptions'
+                });
+        }
 
         // If cart exists in database and has items, use it
         if (cart && cart.items && cart.items.length > 0) {
@@ -243,4 +275,4 @@ async function handler(req, res) {
     }
 }
 
-export default withAuth(handler);
+export default handler;
