@@ -489,7 +489,7 @@ export const translations = {
 
     // Page Titles and Content
     alkasrCategories: 'ALKASR Categories',
-    explorePremiumProducts: 'Explore our premium coffee beans, machines, grinders, and accessories organized by category',
+    explorePremiumProducts: '',
     productCategories: 'Product Categories',
     chooseCategoryToExplore: 'Choose a category to explore our premium products',
     aboutOurStory: 'About Our Story',
