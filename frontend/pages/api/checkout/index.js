@@ -31,9 +31,17 @@ async function handler(req, res) {
     }
 
     try {
+        console.log('=== CHECKOUT API DEBUG ===');
+        console.log('Request body:', JSON.stringify(req.body, null, 2));
+        console.log('Headers:', req.headers.authorization ? 'Token present' : 'No token');
+
         await connectToDatabase();
+        console.log('✅ Database connected');
 
         const { shippingAddress, paymentMethod = 'cash_on_delivery', notes, shippingCost: providedShippingCost, cartItems } = req.body;
+
+        console.log('Shipping address:', shippingAddress);
+        console.log('Cart items from body:', cartItems);
 
         // Validate shipping address
         if (!shippingAddress || !shippingAddress.street || !shippingAddress.city) {
