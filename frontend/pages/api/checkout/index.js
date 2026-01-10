@@ -2,6 +2,7 @@ import { verifyToken } from '../../../lib/auth';
 import connectToDatabase from '../../../lib/mongodb';
 import Cart from '../../../models/Cart';
 import Product from '../../../models/Product';
+import Category from '../../../models/Category'; // Import Category to register schema
 import Order from '../../../models/Order';
 import { sendOrderConfirmationEmail } from '../../../lib/emailService';
 

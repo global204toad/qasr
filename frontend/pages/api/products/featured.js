@@ -1,5 +1,6 @@
 import connectToDatabase from '../../../lib/mongodb';
 import Product from '../../../models/Product';
+import Category from '../../../models/Category'; // Import to register schema
 
 export default async function handler(req, res) {
     if (req.method !== 'GET') {
