@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { validateWeightOptions, fixWeightOptions, generateWeightOptions } = require('../utils/pricingCalculator');
 
 const productSchema = new mongoose.Schema({
   name: {
@@ -213,14 +214,11 @@ productSchema.statics.findFeatured = function () {
 
 // Static method to calculate proportional pricing
 productSchema.statics.calculateProportionalPricing = function (basePrice1kg) {
-  const { generateWeightOptions } = require('../utils/pricingCalculator');
   return generateWeightOptions(basePrice1kg);
 };
 
 // Method to fix weight options pricing
 productSchema.methods.fixWeightOptionsPricing = function () {
-  const { fixWeightOptions } = require('../utils/pricingCalculator');
-
   if (Array.isArray(this.weightOptions) && this.weightOptions.length > 0) {
     this.weightOptions = fixWeightOptions(this.weightOptions);
   }
@@ -230,8 +228,6 @@ productSchema.methods.fixWeightOptionsPricing = function () {
 
 // Pre-save middleware to validate and fix weight options pricing
 productSchema.pre('save', function (next) {
-  const { validateWeightOptions, fixWeightOptions } = require('../utils/pricingCalculator');
-
   // If weightOptions exist, ensure they follow proportional pricing
   if (Array.isArray(this.weightOptions) && this.weightOptions.length > 0) {
     // Validate current pricing
