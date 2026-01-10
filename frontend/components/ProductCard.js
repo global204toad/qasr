@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Star, ShoppingCart } from 'lucide-react';
+import { ShoppingCart } from 'lucide-react';
 import { formatCurrency, calculateDiscount } from '../lib/utils';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -105,25 +105,7 @@ const ProductCard = ({ product, className = '' }) => {
             {translateProduct(product.name, product.nameAr)}
           </h3>
 
-          {/* Rating */}
-          {product.rating?.count > 0 && (
-            <div className="flex items-center mb-2">
-              <div className="flex items-center">
-                {[...Array(5)].map((_, i) => (
-                  <Star
-                    key={i}
-                    className={`w-4 h-4 ${i < Math.floor(product.rating.average)
-                      ? 'text-yellow-400 fill-current'
-                      : 'text-gray-300'
-                      }`}
-                  />
-                ))}
-              </div>
-              <span className="text-sm text-gray-600 ml-2">
-                ({product.rating.count})
-              </span>
-            </div>
-          )}
+
 
           {/* Price */}
           <div className="flex items-center justify-between mb-2 sm:mb-3">
